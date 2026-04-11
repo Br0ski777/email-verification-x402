@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.br0ski777/email-verification",
+  "name": "io.github.Br0ski777/email-verification",
   "title": "Email Verification API",
   "description": "Verify emails: syntax, MX records, disposable detection, quality scoring. x402 micropayments.",
   "version": "1.0.0",
