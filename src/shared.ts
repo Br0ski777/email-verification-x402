@@ -1,12 +1,7 @@
 export const WALLET_ADDRESS = "0x6E8B64638b24C6D625b045dD353120d850064E2E";
 export const BASE_MAINNET = "eip155:8453";
 export const BASE_SEPOLIA = "eip155:84532";
-export const DEFAULT_NETWORK = BASE_SEPOLIA;
-export const DEFAULT_FACILITATOR = "https://x402.org/facilitator";
-
-// Coinbase CDP credentials for production facilitator
-export const CDP_API_KEY_ID = process.env.CDP_API_KEY_ID || "9002bdcc-491e-4165-af31-325019b0f864";
-export const CDP_API_KEY_SECRET = process.env.CDP_API_KEY_SECRET || "wDKMu78W0wYZBQgT8ybdVQTkEW+wQ3GR2RIVNB1WY0lQPBAxucXblYZSei06s2u+z6f+dezh4EHCOwNbSdUSiQ==";
+export const DEFAULT_NETWORK = BASE_MAINNET;
 
 export interface RouteConfig {
   method: "GET" | "POST";
