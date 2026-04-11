@@ -9,15 +9,10 @@
     "url": "https://github.com/Br0ski777/email-verification-x402",
     "source": "github"
   },
-  "packages": [
+  "remotes": [
     {
-      "registryType": "npm",
-      "identifier": "@br0ski777/email-verification-mcp",
-      "version": "1.0.0",
-      "runtimeHint": "npx",
-      "transport": {
-        "type": "stdio"
-      }
+      "transportType": "streamableHttp",
+      "url": "https://email-verification-x402-production.up.railway.app/mcp"
     }
   ]
 }
