@@ -7,7 +7,7 @@ import {
   DEFAULT_FACILITATOR,
   healthResponse,
   buildPaymentConfig,
-} from "../../../packages/shared";
+} from "./shared";
 import { API_CONFIG } from "./config";
 import { registerRoutes } from "./logic";
 

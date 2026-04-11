@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { API_CONFIG } from "./config";
-import { buildMcpTools } from "../../../packages/shared";
+import { buildMcpTools } from "./shared";
 
 const server = new McpServer({
   name: API_CONFIG.name,

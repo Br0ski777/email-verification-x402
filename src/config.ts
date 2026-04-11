@@ -1,4 +1,4 @@
-import type { ApiConfig } from "../../../packages/shared";
+import type { ApiConfig } from "./shared";
 
 export const API_CONFIG: ApiConfig = {
   name: "email-verification",
