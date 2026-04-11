@@ -1,0 +1,22 @@
+{
+  "name": "@br0ski777/email-verification-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "mcpName": "io.github.br0ski777/email-verification",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "mcp": "bun run src/mcp.ts"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "@x402/hono": "^2.9.0",
+    "@x402/core": "^2.9.0",
+    "@x402/evm": "^2.9.0",
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.7.0"
+  }
+}
