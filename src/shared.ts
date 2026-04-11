@@ -1,7 +1,7 @@
 export const WALLET_ADDRESS = "0x6E8B64638b24C6D625b045dD353120d850064E2E";
 export const BASE_MAINNET = "eip155:8453";
 export const BASE_SEPOLIA = "eip155:84532";
-export const DEFAULT_NETWORK = BASE_MAINNET;
+export const DEFAULT_NETWORK = BASE_SEPOLIA;
 export const DEFAULT_FACILITATOR = "https://x402.org/facilitator";
 
 export interface RouteConfig {
