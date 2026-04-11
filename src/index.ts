@@ -18,25 +18,12 @@ async function setupPayments() {
     const { ExactEvmScheme } = await import("@x402/evm/exact/server");
     const { HTTPFacilitatorClient } = await import("@x402/core/server");
 
-    let facilitatorClient: InstanceType<typeof HTTPFacilitatorClient>;
-
-    // Try CDP facilitator first (mainnet)
-    try {
-      const { facilitator } = await import("@coinbase/x402");
-      facilitatorClient = new HTTPFacilitatorClient(facilitator);
-      console.log("[x402] Using Coinbase CDP facilitator (mainnet)");
-    } catch {
-      // Fallback to x402.org (testnet)
-      facilitatorClient = new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" });
-      console.log("[x402] Fallback to x402.org facilitator (testnet)");
-    }
-
+    const facilitatorClient = new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" });
     const resourceServer = new x402ResourceServer(facilitatorClient)
       .register(DEFAULT_NETWORK, new ExactEvmScheme());
 
-    const paymentConfig = buildPaymentConfig(API_CONFIG.routes);
-    app.use("/api/*", paymentMiddleware(paymentConfig, resourceServer));
-    console.log(`[x402] ${API_CONFIG.routes.length} paid routes active`);
+    app.use("/api/*", paymentMiddleware(buildPaymentConfig(API_CONFIG.routes), resourceServer));
+    console.log(`[x402] Active — ${DEFAULT_NETWORK} — ${API_CONFIG.routes.length} paid routes`);
   } catch (e: any) {
     console.warn("[x402] Payment setup failed, FREE mode:", e.message);
   }
