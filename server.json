@@ -11,7 +11,7 @@
   },
   "remotes": [
     {
-      "transportType": "streamableHttp",
+      "transportType": "sse",
       "url": "https://email-verification-x402-production.up.railway.app/mcp"
     }
   ]
