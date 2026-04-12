@@ -19,10 +19,10 @@ async function setupPayments() {
     const { paymentMiddleware, x402ResourceServer } = await import("@x402/hono");
     const { ExactEvmScheme } = await import("@x402/evm/exact/server");
     const { HTTPFacilitatorClient } = await import("@x402/core/server");
-    const facilitatorClient = new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" });
-    const resourceServer = new x402ResourceServer(facilitatorClient).register("eip155:84532", new ExactEvmScheme());
-    app.use("/api/*", paymentMiddleware(buildPaymentConfig(API_CONFIG.routes, undefined, "eip155:84532"), resourceServer));
-    console.log("[x402] Active — Base Sepolia testnet — " + API_CONFIG.routes.length + " routes");
+    const facilitatorClient = new HTTPFacilitatorClient({ url: "https://facilitator-production-2618.up.railway.app/facilitator" });
+    const resourceServer = new x402ResourceServer(facilitatorClient).register("eip155:8453", new ExactEvmScheme());
+    app.use("/api/*", paymentMiddleware(buildPaymentConfig(API_CONFIG.routes, undefined, "eip155:8453"), resourceServer));
+    console.log("[x402] BASE MAINNET — self-hosted facilitator — " + API_CONFIG.routes.length + " routes");
   } catch (e: any) {
     console.warn("[x402] FREE mode:", e.message);
   }

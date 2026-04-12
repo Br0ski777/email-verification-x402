@@ -9,11 +9,12 @@
     "mcp": "bun run src/mcp.ts"
   },
   "dependencies": {
-    "hono": "^4.7.0",
-    "@x402/hono": "^2.9.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
     "@x402/core": "^2.9.0",
     "@x402/evm": "^2.9.0",
-    "@modelcontextprotocol/sdk": "^1.12.0"
+    "@x402/hono": "^2.9.0",
+    "hono": "^4.7.0",
+    "viem": "^2.47.12"
   },
   "devDependencies": {
     "bun-types": "latest",
