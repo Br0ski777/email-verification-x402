@@ -12,7 +12,7 @@ export const API_CONFIG: ApiConfig = {
       price: "$0.002",
       description: "Verify a single email address",
       toolName: "email_verify_address",
-      toolDescription: "Use this when you need to check if an email address is valid and deliverable. Returns: validity status, syntax check, MX record lookup, disposable domain detection (100+ providers like Mailinator, Guerrilla Mail), role-based detection (admin@, info@), free provider flag (Gmail, Yahoo), and quality score 0-100. Do NOT use for sending emails. Ideal for cleaning email lists, verifying contacts before outreach, or detecting fake signups.",
+      toolDescription: "Use this when you need to check if an email address is valid and deliverable. Returns: validity status, syntax check, MX record lookup, disposable domain detection (100+ providers like Mailinator, Guerrilla Mail), role-based detection (admin@, info@), free provider flag (Gmail, Yahoo), and quality score 0-100. Do NOT use for sending emails. Ideal for cleaning email lists, verifying contacts before outreach, or detecting fake signups. Do NOT use for finding emails — use email_find_by_name. Do NOT use for person data — use person_enrich_from_email.",
       inputSchema: {
         type: "object",
         properties: {
@@ -27,7 +27,7 @@ export const API_CONFIG: ApiConfig = {
       price: "$0.015",
       description: "Verify up to 100 email addresses in batch",
       toolName: "email_verify_batch",
-      toolDescription: "Use this when you need to validate multiple email addresses at once (up to 100). Same checks as email_verify_address but in bulk. Returns array of results plus valid/invalid counts. Do NOT use for single emails.",
+      toolDescription: "Use this when you need to validate multiple email addresses at once (up to 100). Same checks as email_verify_address but in bulk. Returns array of results plus valid/invalid counts. Do NOT use for single emails — use email_verify_address.",
       inputSchema: {
         type: "object",
         properties: {
