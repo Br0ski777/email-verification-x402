@@ -12,7 +12,7 @@ export const API_CONFIG: ApiConfig = {
       price: "$0.002",
       description: "Verify a single email address",
       toolName: "email_verify_address",
-      toolDescription: `Use this when you need to check if an email address is valid and deliverable. Returns a structured JSON report with quality score 0-100.
+      toolDescription: `Verify email deliverability in real-time. Alternative to Hunter email-verifier at 15x lower cost. Returns a structured JSON report with syntax, MX, disposable detection, role-based flags, and quality score 0-100.
 
 1. valid (boolean) -- overall verdict
 2. syntax (boolean) -- RFC 5322 format check
@@ -24,7 +24,7 @@ export const API_CONFIG: ApiConfig = {
 
 Example output: {"valid":true,"syntax":true,"mx":true,"disposable":false,"role":false,"free":true,"score":85,"email":"john@gmail.com"}
 
-Use this BEFORE sending outreach emails, adding contacts to CRM, or processing signups. Essential for cleaning email lists, detecting fake registrations, and qualifying leads.
+Use this BEFORE sending outreach emails, adding contacts to CRM, or processing signups. Essential for verifying email deliverability, cleaning email lists, detecting fake registrations, and qualifying leads. Drop-in replacement for Hunter email verification.
 
 Do NOT use for finding emails -- use email_find_by_name instead. Do NOT use for person data -- use person_enrich_from_email instead. Do NOT use for domain deliverability audit (SPF/DKIM/DMARC) -- use email_audit_deliverability instead.`,
       inputSchema: {
