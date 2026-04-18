@@ -41,7 +41,26 @@ async function setupPayments() {
   }
 }
 
+async function setupAtxp() {
+  const conn = process.env.ATXP_CONNECTION;
+  if (!conn) {
+    console.warn("[atxp] ATXP_CONNECTION not set — ATXP payments disabled. Set at accounts.atxp.ai");
+    return;
+  }
+  try {
+    const { atxpHono, ATXPAccount } = await import("./atxp-middleware");
+    app.use("/api/*", atxpHono({
+      destination: new ATXPAccount(conn),
+      payeeName: API_CONFIG.name,
+    }));
+    console.log("[atxp] Enabled — ATXP OAuth + MPP + x402 omni-challenge active on /api/*");
+  } catch (e: any) {
+    console.warn("[atxp] Failed to init:", e.message);
+  }
+}
+
 await setupPayments();
+await setupAtxp();
 
 registerRoutes(app);
 

@@ -1,6 +1,22 @@
 import type { Hono } from "hono";
 import { Resolver } from "dns/promises";
 
+// ATXP: requirePayment only fires inside an ATXP context (set by atxpHono middleware).
+// For raw x402 requests, the existing @x402/hono middleware handles the gate.
+// If neither protocol is active (ATXP_CONNECTION unset), tryRequirePayment is a no-op.
+async function tryRequirePayment(price: number): Promise<void> {
+  if (!process.env.ATXP_CONNECTION) return;
+  try {
+    const { requirePayment } = await import("@atxp/server");
+    const BigNumber = (await import("bignumber.js")).default;
+    await requirePayment({ price: BigNumber(price) });
+  } catch (e: any) {
+    // No ATXP context on this request → x402 middleware already handled payment.
+    // Or: genuine payment failure → middleware has thrown McpError(-30402).
+    if (e?.code === -30402) throw e;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Disposable email domains (top 100+)
 // ---------------------------------------------------------------------------
@@ -131,6 +147,7 @@ async function verifyEmail(email: string): Promise<VerifyResult> {
 // ---------------------------------------------------------------------------
 export function registerRoutes(app: Hono) {
   app.post("/api/verify", async (c) => {
+    await tryRequirePayment(0.002);
     const body = await c.req.json<{ email?: string }>();
     if (!body.email) {
       return c.json({ error: "Missing 'email' field in request body" }, 400);
@@ -140,6 +157,7 @@ export function registerRoutes(app: Hono) {
   });
 
   app.post("/api/verify/batch", async (c) => {
+    await tryRequirePayment(0.015);
     const body = await c.req.json<{ emails?: string[] }>();
     if (!body.emails || !Array.isArray(body.emails)) {
       return c.json({ error: "Missing 'emails' array in request body" }, 400);
