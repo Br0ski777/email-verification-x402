@@ -13,30 +13,35 @@ app.get("/", (c) => c.json(healthResponse(API_CONFIG.name)));
 app.get("/health", (c) => c.json({ status: "ok", timestamp: Date.now() }));
 setupMcp(app, API_CONFIG);
 
-// ATXP/RFC 9728 — serve PRM on all resource-specific path variants the SDK probes:
-//  /.well-known/oauth-protected-resource/{path}  (RFC 9728 suffix)
-//  /{path}/.well-known/oauth-protected-resource (legacy)
-// The root /.well-known/oauth-protected-resource is handled by the middleware.
-function prmPayload(c: any) {
-  const origin = new URL(c.req.url).origin;
-  return {
-    resource: `${origin}/`,
+// ATXP/RFC 9728 — serve PRM on all resource-specific path variants the SDK probes.
+// The SDK uses oauth4webapi which strictly validates `resource` matches the
+// protected-resource URL the PRM path is about:
+//  - /.well-known/oauth-protected-resource           → resource: {origin}
+//  - /.well-known/oauth-protected-resource/{path}    → resource: {origin}/{path}   (RFC 9728 suffix)
+//  - /{path}/.well-known/oauth-protected-resource    → resource: {origin}/{path}   (legacy)
+app.use("*", async (c, next) => {
+  if (c.req.method !== "GET") return next();
+  const url = new URL(c.req.url);
+  const p = url.pathname;
+  const WK = "/.well-known/oauth-protected-resource";
+  let resourcePath: string | null = null;
+  if (p === WK) {
+    resourcePath = "";
+  } else if (p.startsWith(WK + "/")) {
+    resourcePath = p.slice(WK.length); // e.g. "/api/verify"
+  } else if (p.endsWith(WK)) {
+    resourcePath = p.slice(0, -WK.length); // e.g. "/api/verify"
+  } else {
+    return next();
+  }
+  const resource = `${url.origin}${resourcePath || ""}`;
+  return c.json({
+    resource,
     resource_name: API_CONFIG.name,
     authorization_servers: ["https://auth.atxp.ai"],
     bearer_methods_supported: ["header"],
     scopes_supported: ["read", "write"],
-  };
-}
-app.use("*", async (c, next) => {
-  const p = new URL(c.req.url).pathname;
-  if (
-    c.req.method === "GET" &&
-    (p.startsWith("/.well-known/oauth-protected-resource/") ||
-      p.endsWith("/.well-known/oauth-protected-resource"))
-  ) {
-    return c.json(prmPayload(c));
-  }
-  return next();
+  });
 });
 
 
