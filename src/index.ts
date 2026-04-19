@@ -13,6 +13,32 @@ app.get("/", (c) => c.json(healthResponse(API_CONFIG.name)));
 app.get("/health", (c) => c.json({ status: "ok", timestamp: Date.now() }));
 setupMcp(app, API_CONFIG);
 
+// ATXP/RFC 9728 — serve PRM on all resource-specific path variants the SDK probes:
+//  /.well-known/oauth-protected-resource/{path}  (RFC 9728 suffix)
+//  /{path}/.well-known/oauth-protected-resource (legacy)
+// The root /.well-known/oauth-protected-resource is handled by the middleware.
+function prmPayload(c: any) {
+  const origin = new URL(c.req.url).origin;
+  return {
+    resource: `${origin}/`,
+    resource_name: API_CONFIG.name,
+    authorization_servers: ["https://auth.atxp.ai"],
+    bearer_methods_supported: ["header"],
+    scopes_supported: ["read", "write"],
+  };
+}
+app.use("*", async (c, next) => {
+  const p = new URL(c.req.url).pathname;
+  if (
+    c.req.method === "GET" &&
+    (p.startsWith("/.well-known/oauth-protected-resource/") ||
+      p.endsWith("/.well-known/oauth-protected-resource"))
+  ) {
+    return c.json(prmPayload(c));
+  }
+  return next();
+});
+
 
 async function setupPayments() {
   try {
