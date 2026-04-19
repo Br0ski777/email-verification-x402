@@ -34,7 +34,10 @@ app.use("*", async (c, next) => {
   } else {
     return next();
   }
-  const resource = `${url.origin}${resourcePath || ""}`;
+  // Railway terminates TLS upstream — request proto is http, but clients use https.
+  const proto = c.req.header("x-forwarded-proto") || url.protocol.replace(":", "") || "https";
+  const host = c.req.header("x-forwarded-host") || c.req.header("host") || url.host;
+  const resource = `${proto}://${host}${resourcePath || ""}`;
   return c.json({
     resource,
     resource_name: API_CONFIG.name,
