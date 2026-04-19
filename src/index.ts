@@ -59,8 +59,11 @@ async function setupAtxp() {
   }
 }
 
-await setupPayments();
+// ORDER MATTERS: ATXP middleware MUST be registered BEFORE x402 so it can
+// intercept ATXP/MPP/OAuth requests first. For non-ATXP requests (no bearer,
+// no x-atxp-payment, no payment-signature), it falls through to x402.
 await setupAtxp();
+await setupPayments();
 
 registerRoutes(app);
 
