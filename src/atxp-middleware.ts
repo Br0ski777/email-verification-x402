@@ -6,142 +6,95 @@ import {
   sendProtectedResourceMetadataWebApi,
   getOAuthMetadata,
   sendOAuthMetadataWebApi,
+  parseMcpRequestsWebApi,
   detectProtocol,
   checkTokenWebApi,
   parseCredentialBase64,
   sendOAuthChallengeWebApi,
   withATXPContext,
   ProtocolSettlement,
-  verifyOpaqueIdentity,
-  buildX402Requirements,
-  omniChallengeHttpResponse,
-  requirePayment,
   type ATXPArgs,
 } from "@atxp/server";
-import BigNumber from "bignumber.js";
 
 export { requirePayment, ATXPAccount } from "@atxp/server";
 export type { ATXPArgs } from "@atxp/server";
 
-export interface AtxpHonoArgs extends ATXPArgs {
-  /**
-   * RegExp matching paths that require payment.
-   * Only these paths trigger the full ATXP auth+payment flow.
-   * Unmatched paths pass through to downstream middleware.
-   * Default: /^\/api\//
-   */
-  protectedPathPattern?: RegExp;
-  /**
-   * Lookup price (USDC) for a request. If undefined or returns null,
-   * the middleware falls through to downstream payment middleware
-   * (e.g., @x402/hono) without emitting its own payment challenge.
-   */
-  priceForRequest?: (method: string, path: string) => number | null;
-}
-
 /**
  * Hono middleware for ATXP payment protocol.
  *
- * Flow:
- * 1. Serve OAuth metadata endpoints (/.well-known/*).
- * 2. For unprotected paths, call next() unchanged.
- * 3. For protected paths:
- *    - X-PAYMENT header present (pure x402) → let downstream x402/hono handle
- *    - No Authorization + no X-PAYMENT → emit 401 OAuth challenge (force OAuth flow)
- *    - Authorization present but invalid → 401 OAuth challenge
- *    - Authorization valid → settle credential if any, then call requirePayment()
- *      inside ATXP context; catch any McpError(-30402) thrown by requirePayment
- *      and convert to a 402 omni-challenge HTTP response.
+ * Mount BEFORE route handlers. Accepts ATXP OAuth bearer, MPP, and x402 credentials.
+ * Runs in parallel with existing @x402/hono middleware — x402-only traffic passes through
+ * untouched if no ATXP/MPP header is present and Authorization bearer is absent.
  *
- * Requires env var ATXP_CONNECTION (https://accounts.atxp.ai).
+ * Requires env var ATXP_CONNECTION (set via accounts.atxp.ai).
+ *
+ * Usage:
+ *   import { atxpHono, ATXPAccount, requirePayment } from "@api-factory/atxp-hono";
+ *
+ *   app.use("/api/*", atxpHono({
+ *     destination: new ATXPAccount(process.env.ATXP_CONNECTION!),
+ *     payeeName: "email-verification",
+ *   }));
+ *
+ *   // In route handler:
+ *   //   await requirePayment({ price: BigNumber(0.002) });
+ *   //   return c.json(result);
  */
-export function atxpHono(args: AtxpHonoArgs): MiddlewareHandler {
+export function atxpHono(args: ATXPArgs): MiddlewareHandler {
   const config = buildServerConfig(args);
   const logger = config.logger;
-  const protectedPattern = args.protectedPathPattern ?? /^\/api\//;
-  const priceLookup = args.priceForRequest;
 
   return async (c: Context, next) => {
     try {
       const request = c.req.raw;
       const requestUrl = new URL(c.req.url);
-      const pathname = requestUrl.pathname;
-      const headersObj = Object.fromEntries(request.headers);
 
-      // 1. OAuth / PRM metadata endpoints.
-      const resource = getResource(config, requestUrl, headersObj);
-      const prmResponse = getProtectedResourceMetadata(config, requestUrl, headersObj);
+      // 1. OAuth metadata endpoints (RFC 8414, RFC 9728) — ATXP clients probe these.
+      const resource = getResource(config, requestUrl, Object.fromEntries(request.headers));
+      const prmResponse = getProtectedResourceMetadata(
+        config,
+        requestUrl,
+        Object.fromEntries(request.headers),
+      );
       const prmOut = sendProtectedResourceMetadataWebApi(prmResponse);
-      if (prmOut) return prmOut;
+      if (prmOut) {
+        return prmOut;
+      }
 
       const oAuthMetadata = await getOAuthMetadata(config, requestUrl);
       const oMetaOut = sendOAuthMetadataWebApi(oAuthMetadata);
-      if (oMetaOut) return oMetaOut;
-
-      // 1b. Fix Bug A: serve PRM for any resource-specific path the ATXP SDK
-      // may point to (path-suffix and legacy formats per RFC 9728).
-      if (
-        pathname.startsWith("/.well-known/oauth-protected-resource/") ||
-        pathname.endsWith("/.well-known/oauth-protected-resource") ||
-        pathname.endsWith("/.well-known/oauth-authorization-server")
-      ) {
-        const origin = requestUrl.origin;
-        if (pathname.includes("oauth-authorization-server")) {
-          return new Response(
-            JSON.stringify(
-              oAuthMetadata ?? {
-                issuer: config.server,
-                authorization_endpoint: `${config.server}/authorize`,
-                token_endpoint: `${config.server}/token`,
-              },
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        return new Response(
-          JSON.stringify({
-            resource: `${origin}/`,
-            resource_name: config.payeeName,
-            authorization_servers: [config.server],
-            bearer_methods_supported: ["header"],
-            scopes_supported: ["read", "write"],
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+      if (oMetaOut) {
+        return oMetaOut;
       }
 
-      // 2. If this path isn't payment-gated, pass through.
-      if (!protectedPattern.test(pathname)) {
-        return next();
-      }
-
-      // 3. Pure x402 request (X-PAYMENT header, no bearer)?  Let the existing
-      // @x402/hono middleware handle it for backward compatibility.
-      const authHeader = request.headers.get("authorization") ?? undefined;
-      const xPayment = request.headers.get("x-payment") ?? undefined;
-      const xAtxpPayment = request.headers.get("x-atxp-payment") ?? undefined;
-      const paymentSignature = request.headers.get("payment-signature") ?? undefined;
-
-      if (xPayment && !authHeader && !xAtxpPayment && !paymentSignature) {
-        return next();
-      }
-
-      // 4. Detect credential + verify bearer (if any).
+      // 2. Detect payment credentials from request headers.
+      const hdr = (name: string) => request.headers.get(name) ?? undefined;
       const detected = detectProtocol({
-        "x-atxp-payment": xAtxpPayment,
-        "payment-signature": paymentSignature,
-        "x-payment": xPayment,
-        authorization: authHeader,
+        "x-atxp-payment": hdr("x-atxp-payment"),
+        "payment-signature": hdr("payment-signature"),
+        "x-payment": hdr("x-payment"),
+        authorization: hdr("authorization"),
       });
 
+      // 3. If no credential and no Authorization bearer: let the request through
+      // so the existing x402 middleware (or public routes) can respond.
+      // Only ATXP-aware clients send the relevant headers.
+      if (!detected && !hdr("authorization")) {
+        return next();
+      }
+
+      // 4. Parse MCP requests if this is an MCP POST (JSON-RPC).
+      const mcpRequests = await parseMcpRequestsWebApi(config, request).catch(() => [] as any[]);
+
+      // 5. Verify OAuth token (if bearer present) or identity via opaque (MPP).
       let tokenCheck = await checkTokenWebApi(config, resource, request);
       let user = tokenCheck.data?.sub ?? null;
 
-      // 4b. Recover MPP opaque identity if bearer failed but MPP credential present.
       if (detected && detected.protocol === "mpp" && !tokenCheck.passes) {
         const parsed = parseCredentialBase64(detected.credential);
         const challenge = parsed?.challenge;
         if (challenge?.opaque && challenge?.id) {
+          const { verifyOpaqueIdentity } = await import("@atxp/server");
           const recoveredSub = verifyOpaqueIdentity(challenge.opaque, challenge.id);
           if (recoveredSub) {
             user = recoveredSub;
@@ -150,78 +103,50 @@ export function atxpHono(args: AtxpHonoArgs): MiddlewareHandler {
         }
       }
 
-      // 5. If we still have no user, emit OAuth challenge (401).
-      if (!user) {
+      // 6. If no valid creds and request expects OAuth (ATXP/MPP retry), send challenge.
+      const shouldChallenge = !detected || (detected.protocol === "mpp" && !user);
+      if (shouldChallenge) {
         const chal = sendOAuthChallengeWebApi(tokenCheck);
         if (chal) return chal;
-        return c.json({ error: "unauthorized" }, 401);
       }
 
-      // 6. Settle credential immediately (credits ATXP ledger before route runs).
+      // 7. Settle credential immediately (credits ATXP ledger before route runs).
       if (detected) {
+        const destinationAccountId = await config.destination.getAccountId();
+        const sourceAccountId = user ?? undefined;
+        const context: any = { destinationAccountId };
+        if (sourceAccountId) context.sourceAccountId = sourceAccountId;
+
+        if (detected.protocol === "x402") {
+          const parsed = parseCredentialBase64(detected.credential);
+          if (parsed?.accepted) context.paymentRequirements = parsed.accepted;
+        }
+
+        const settlement = new ProtocolSettlement(
+          config.server,
+          logger,
+          fetch.bind(globalThis),
+          destinationAccountId,
+        );
+
         try {
-          const destinationAccountId = await config.destination.getAccountId();
-          const context: any = { destinationAccountId, sourceAccountId: user };
-          if (detected.protocol === "x402") {
-            const parsed = parseCredentialBase64(detected.credential);
-            if (parsed?.accepted) context.paymentRequirements = parsed.accepted;
-          }
-          const settlement = new ProtocolSettlement(
-            config.server,
-            logger,
-            fetch.bind(globalThis),
-            destinationAccountId,
-          );
-          const result = await settlement.settle(
-            detected.protocol,
-            detected.credential,
-            context,
-          );
+          const result = await settlement.settle(detected.protocol, detected.credential, context);
           logger.info(
             `[atxp-hono] Settled ${detected.protocol}: txHash=${result.txHash} amount=${result.settledAmount}`,
           );
         } catch (error) {
-          logger.warn(
+          logger.error(
             `[atxp-hono] Settlement failed for ${detected.protocol}: ${
               error instanceof Error ? error.message : String(error)
-            } — will re-challenge`,
+            }`,
           );
         }
       }
 
-      // 7. Run handler inside ATXP context, catching payment challenges
-      //    (McpError with code -30402) and converting to 402 omni-challenge HTTP response.
+      // 8. Run handler inside ATXP context so requirePayment() works.
       return await withATXPContext(config, resource, tokenCheck, async () => {
-        try {
-          // 7a. If we know the price for this route, gate here BEFORE the route
-          //     handler runs so the omni-challenge is always emitted consistently.
-          const price = priceLookup?.(request.method, pathname);
-          if (price !== undefined && price !== null && price > 0) {
-            await requirePayment({ price: BigNumber(price) });
-          }
-          // 7b. Let the route handler run.
-          await next();
-          return c.res;
-        } catch (error: any) {
-          if (error?.code === -30402 && error?.data) {
-            const d = error.data;
-            if (d.paymentRequestId && d.x402) {
-              const chargeAmount = d.chargeAmount ? BigNumber(d.chargeAmount) : undefined;
-              const http = omniChallengeHttpResponse(
-                config.server,
-                d.paymentRequestId,
-                chargeAmount,
-                d.x402,
-                d.mpp,
-              );
-              return new Response(http.body, {
-                status: http.status,
-                headers: http.headers,
-              });
-            }
-          }
-          throw error;
-        }
+        await next();
+        return c.res;
       });
     } catch (error) {
       logger.error(
