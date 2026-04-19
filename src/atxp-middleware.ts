@@ -99,6 +99,19 @@ export function atxpHono(args: AtxpHonoArgs): MiddlewareHandler {
         return next();
       }
 
+      // 3b. Pure x402 v2 credentials (payment-signature / x-payment) — let
+      // @x402/hono verify & settle. Our ATXPSettlement chokes on them.
+      // Only ATXP-aware clients (bearer or x-atxp-payment) should go through
+      // the ATXP settlement path below.
+      if (
+        detected &&
+        detected.protocol === "x402" &&
+        !hdr("x-atxp-payment") &&
+        !hdr("authorization")
+      ) {
+        return next();
+      }
+
       // 4. Parse MCP requests if this is an MCP POST (JSON-RPC).
       const mcpRequests = await parseMcpRequestsWebApi(config, request).catch(() => [] as any[]);
 
