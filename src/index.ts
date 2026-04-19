@@ -49,7 +49,9 @@ async function setupAtxp() {
   }
   try {
     const { atxpHono, ATXPAccount } = await import("./atxp-middleware");
-    app.use("/api/*", atxpHono({
+    // Mount broadly so OAuth metadata endpoints (/.well-known/*) are served too.
+    // The middleware short-circuits safely when no credentials are present.
+    app.use("*", atxpHono({
       destination: new ATXPAccount(conn),
       payeeName: API_CONFIG.name,
     }));
