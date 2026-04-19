@@ -13,11 +13,26 @@ import {
   sendOAuthChallengeWebApi,
   withATXPContext,
   ProtocolSettlement,
+  requirePayment,
+  omniChallengeHttpResponse,
   type ATXPArgs,
 } from "@atxp/server";
+import BigNumber from "bignumber.js";
 
 export { requirePayment, ATXPAccount } from "@atxp/server";
 export type { ATXPArgs } from "@atxp/server";
+
+export interface AtxpHonoArgs extends ATXPArgs {
+  /**
+   * Lookup price (USDC) for a given request. Returning a number triggers
+   * requirePayment() inside the ATXP context, which on no-payment throws
+   * McpError(-30402). That error is caught and converted to a 402
+   * omni-challenge HTTP response (body + headers) that ATXPAccountHandler
+   * can parse. Returning null/undefined skips the gate — the route handler
+   * runs and downstream middleware (e.g. @x402/hono) may gate instead.
+   */
+  priceForRequest?: (method: string, path: string) => number | null | undefined;
+}
 
 /**
  * Hono middleware for ATXP payment protocol.
@@ -40,9 +55,10 @@ export type { ATXPArgs } from "@atxp/server";
  *   //   await requirePayment({ price: BigNumber(0.002) });
  *   //   return c.json(result);
  */
-export function atxpHono(args: ATXPArgs): MiddlewareHandler {
+export function atxpHono(args: AtxpHonoArgs): MiddlewareHandler {
   const config = buildServerConfig(args);
   const logger = config.logger;
+  const priceLookup = args.priceForRequest;
 
   return async (c: Context, next) => {
     try {
@@ -144,9 +160,39 @@ export function atxpHono(args: ATXPArgs): MiddlewareHandler {
       }
 
       // 8. Run handler inside ATXP context so requirePayment() works.
+      //    If a priceLookup is provided, call requirePayment BEFORE the handler
+      //    so the 402 omni-challenge is always emitted in the format
+      //    ATXPAccountHandler expects (body JSON with chargeAmount + x402 + mpp).
       return await withATXPContext(config, resource, tokenCheck, async () => {
-        await next();
-        return c.res;
+        const requestUrl2 = new URL(c.req.url);
+        const pathname = requestUrl2.pathname;
+        try {
+          const price = priceLookup?.(c.req.method, pathname);
+          if (price !== undefined && price !== null && price > 0) {
+            await requirePayment({ price: BigNumber(price) });
+          }
+          await next();
+          return c.res;
+        } catch (error: any) {
+          if (error?.code === -30402 && error?.data) {
+            const d = error.data;
+            if (d.paymentRequestId && d.x402) {
+              const chargeAmount = d.chargeAmount ? BigNumber(d.chargeAmount) : undefined;
+              const http = omniChallengeHttpResponse(
+                config.server,
+                d.paymentRequestId,
+                chargeAmount,
+                d.x402,
+                d.mpp,
+              );
+              return new Response(http.body, {
+                status: http.status,
+                headers: http.headers,
+              });
+            }
+          }
+          throw error;
+        }
       });
     } catch (error) {
       logger.error(

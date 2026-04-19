@@ -83,11 +83,20 @@ async function setupAtxp() {
   }
   try {
     const { atxpHono, ATXPAccount } = await import("./atxp-middleware");
+    // Build method+path → price lookup so the middleware can emit the
+    // 402 omni-challenge (body JSON format required by ATXPAccountHandler)
+    // when an authenticated ATXP client calls a protected route without payment.
+    const priceMap = new Map<string, number>();
+    for (const r of API_CONFIG.routes) {
+      const priceNum = parseFloat((r.price || "0").replace("$", ""));
+      priceMap.set(`${r.method} ${r.path}`, priceNum);
+    }
     app.use("*", atxpHono({
       destination: new ATXPAccount(conn),
       payeeName: API_CONFIG.name,
+      priceForRequest: (method, path) => priceMap.get(`${method} ${path}`) ?? null,
     }));
-    console.log("[atxp] Enabled — ATXP OAuth + MPP + x402 omni-challenge active");
+    console.log(`[atxp] Enabled — ${priceMap.size} gated routes, omni-challenge active`);
   } catch (e: any) {
     console.warn("[atxp] Failed to init:", e.message);
   }
