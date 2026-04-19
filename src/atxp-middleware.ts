@@ -185,7 +185,31 @@ export function atxpHono(args: AtxpHonoArgs): MiddlewareHandler {
                 d.x402,
                 d.mpp,
               );
-              return new Response(http.body, {
+              // Augment body with flat {amount, chargeAmount, x402, mpp} so
+              // ATXPAccountHandler@0.11.8 (which looks for top-level `amount`)
+              // can parse. Preserve existing keys (x402Version, accepts) for
+              // pure-x402 clients. Bug #2 documented in project_atxp_integration.md.
+              let body: string = typeof http.body === "string" ? http.body : "";
+              try {
+                const orig = body ? JSON.parse(body) : {};
+                const firstAccept = Array.isArray(orig.accepts) ? orig.accepts[0] : null;
+                const amount = chargeAmount
+                  ? chargeAmount.toString()
+                  : firstAccept?.amount
+                  ? String(firstAccept.amount)
+                  : undefined;
+                const patched = {
+                  ...orig,
+                  ...(amount !== undefined ? { amount, chargeAmount: amount } : {}),
+                  paymentRequestId: d.paymentRequestId,
+                  x402: d.x402,
+                  ...(d.mpp ? { mpp: d.mpp } : {}),
+                };
+                body = JSON.stringify(patched);
+              } catch {
+                // If the omni body isn't JSON, leave as-is.
+              }
+              return new Response(body, {
                 status: http.status,
                 headers: http.headers,
               });
