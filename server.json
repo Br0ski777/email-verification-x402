@@ -12,7 +12,7 @@
   "remotes": [
     {
       "type": "sse",
-      "url": "https://email-verification-x402-production.up.railway.app/mcp"
+      "url": "https://email-verification.api.klymax402.com/mcp"
     }
   ]
 }
