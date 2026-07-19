@@ -9,7 +9,7 @@ export const API_CONFIG: ApiConfig = {
     {
       method: "POST",
       path: "/api/verify",
-      price: "$0.002",
+      price: "$0.005",
       description: "Verify a single email address",
       toolName: "email_verify_address",
       toolDescription: `Verify email deliverability in real-time. Alternative to Hunter email-verifier at 15x lower cost. Returns a structured JSON report with syntax, MX, disposable detection, role-based flags, and quality score 0-100.
@@ -55,7 +55,7 @@ Do NOT use for finding emails -- use email_find_by_name instead. Do NOT use for 
     {
       method: "POST",
       path: "/api/verify/batch",
-      price: "$0.015",
+      price: "$0.03",
       description: "Verify up to 100 email addresses in batch",
       toolName: "email_verify_batch",
       toolDescription: `Use this when you need to validate multiple email addresses at once (up to 100). Returns a JSON array of verification results plus summary counts.
