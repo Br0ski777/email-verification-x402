@@ -37,8 +37,8 @@ Any x402-aware client ([`@x402/fetch`](https://www.npmjs.com/package/@x402/fetch
 
 | Tool | Method | Path | Price | Description |
 |---|---|---|---|---|
-| `email_verify_address` | POST | `/api/verify` | $0.002 | Verify a single email address |
-| `email_verify_batch` | POST | `/api/verify/batch` | $0.015 | Verify up to 100 email addresses in batch |
+| `email_verify_address` | POST | `/api/verify` | $0.005 | Verify a single email address |
+| `email_verify_batch` | POST | `/api/verify/batch` | $0.03 | Verify up to 100 email addresses in batch |
 
 ### `email_verify_address`
 
